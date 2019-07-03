@@ -26,9 +26,9 @@ output_file4='/home/aled/Documents/190619_Nimegen_SNP_part2/giab_coverage.txt'
 # loop throught list of SNPs to SNP info
 with open ('/home/aled/Documents/190619_Nimegen_SNP_part2/SNP_POS.txt','r') as variant_list:
     for line in variant_list.readlines():
-        Chromosome,Start,Stop,rsID,Gene,ALT,REF=line.rstrip().split("\t")
-        dict["variant"][Gene] = {"chr":Chromosome,"pos":Stop,"ref":REF,"alt":ALT,"RS":rsID,"samples":{}}
-        dict2["variant"][Gene] = {"chr":Chromosome,"pos":Stop,"ref":REF,"alt":ALT,"RS":rsID,"samples":{}}
+        Chromosome,Start,Stop,rsID,Gene,REF=line.rstrip().split("\t")
+        dict["variant"][Gene] = {"chr":Chromosome,"pos":Stop,"ref":REF,"RS":rsID,"samples":{}}
+        dict2["variant"][Gene] = {"chr":Chromosome,"pos":Stop,"ref":REF,"RS":rsID,"samples":{}}
 
 # loop through all 'observed' decmposed gVCFs 
 for obs_file in os.listdir("/home/aled/Documents/190619_Nimegen_SNP_part2/observed/vcf_decomposed"):
@@ -205,10 +205,10 @@ for obs_file in os.listdir("/home/aled/Documents/190619_Nimegen_SNP_part2/observ
 
 ## Create output files for coverage and genotypes for GIAB and truth sets.
 # create header line for non GIAB samples
-header=["chr","pos","ref","alt","gene","RS"]
+header=["chr","pos","ref","gene","RS"]
 for sample in samples:
-    header.append(sample+"_expected_ALT,"+sample+"_expected_GT")
-    header.append(sample+"_observed_ALT,"+sample+"_observed_GT")
+    header.append(sample+"_expected_GT")
+    header.append(sample+"_observed_GT")
     header.append(sample+"_match")
 
 # create genotyping file
@@ -218,43 +218,56 @@ with open(output_file1,'w') as non_giab_results:
     # one line per gene and one column for observed and expected and if it matches per sample
     for gene in dict["variant"]:
         # create a list of elements that will become the line with the SNP descriptors
-        line=[dict["variant"][gene]["chr"],dict["variant"][gene]["pos"],dict["variant"][gene]["ref"],dict["variant"][gene]["alt"],gene,dict["variant"][gene]["RS"]]
+        line=[dict["variant"][gene]["chr"],dict["variant"][gene]["pos"],dict["variant"][gene]["ref"],gene,dict["variant"][gene]["RS"]]
         # append result of samples to this list
         for sample in samples:
+            if dict["variant"][gene]["samples"][sample]["exp_var"]["GT"] =="0/0":
+                line.append(dict["variant"][gene]["samples"][sample]["exp_var"]["REF"] + "/" + dict["variant"][gene]["samples"][sample]["exp_var"]["REF"])
+            elif dict["variant"][gene]["samples"][sample]["exp_var"]["GT"] =="0/1":
+                line.append(dict["variant"][gene]["samples"][sample]["exp_var"]["REF"] + "/" + dict["variant"][gene]["samples"][sample]["exp_var"]["ALT"])
+            elif dict["variant"][gene]["samples"][sample]["exp_var"]["GT"] =="1/1":
+                line.append(dict["variant"][gene]["samples"][sample]["exp_var"]["ALT"] + "/" + dict["variant"][gene]["samples"][sample]["exp_var"]["ALT"])
+            else:
+                line.append("unable to determine genotype")
+            
+            if dict["variant"][gene]["samples"][sample]["obs_var"]["GT"] =="0/0":
+                line.append(dict["variant"][gene]["samples"][sample]["obs_var"]["REF"] + "/" + dict["variant"][gene]["samples"][sample]["obs_var"]["REF"])
+            elif dict["variant"][gene]["samples"][sample]["obs_var"]["GT"] =="0/1":
+                line.append(dict["variant"][gene]["samples"][sample]["obs_var"]["REF"] + "/" + dict["variant"][gene]["samples"][sample]["obs_var"]["ALT"])
+            elif dict["variant"][gene]["samples"][sample]["obs_var"]["GT"] =="1/1":
+                line.append(dict["variant"][gene]["samples"][sample]["obs_var"]["ALT"] + "/" + dict["variant"][gene]["samples"][sample]["obs_var"]["ALT"])
             # add the expected ALT allele and the genotype
-            line.append(dict["variant"][gene]["samples"][sample]["exp_var"]["ALT"]+","+dict["variant"][gene]["samples"][sample]["exp_var"]["GT"])
+            #line.append(dict["variant"][gene]["samples"][sample]["exp_var"]["REF"]+","+dict["variant"][gene]["samples"][sample]["exp_var"]["ALT"]+","+dict["variant"][gene]["samples"][sample]["exp_var"]["GT"])
             # add the observed ALT allele and the genotype
-            line.append(dict["variant"][gene]["samples"][sample]["obs_var"]["ALT"]+","+dict["variant"][gene]["samples"][sample]["obs_var"]["GT"])
+            #line.append(dict["variant"][gene]["samples"][sample]["obs_var"]["ALT"]+","+dict["variant"][gene]["samples"][sample]["obs_var"]["GT"])
             # assess if the ALT allele and the genotype matches and record match or not
-            if dict["variant"][gene]["samples"][sample]["obs_var"]["ALT"].startswith(dict["variant"][gene]["samples"][sample]["exp_var"]["ALT"][0]):
-                if dict["variant"][gene]["samples"][sample]["exp_var"]["GT"] == dict["variant"][gene]["samples"][sample]["obs_var"]["GT"]:
-                    line.append("match")
-                else:
-                    line.append("UhOh")
+            if dict["variant"][gene]["samples"][sample]["obs_var"]["ALT"] == dict["variant"][gene]["samples"][sample]["exp_var"]["ALT"] and dict["variant"][gene]["samples"][sample]["exp_var"]["GT"] == dict["variant"][gene]["samples"][sample]["obs_var"]["GT"]:
+                line.append("match")
             else:
                 line.append("UhOh")
+
         # write list to file
         non_giab_results.write("\t".join(line)+"\n")
         
 # create non - GIAB coverage file
 with open(output_file3,'w') as non_giab_coverage:
     # create new header row
-    header=["chr","pos","ref","alt","gene","RS"]
+    header=["chr","pos","ref","gene","RS"]
     # append one column for each observed sample with DP
     for sample in samples:
         header.append(sample+"_observed_DP")
     non_giab_coverage.write("\t".join(header)+"\n")
     for gene in dict["variant"]:
-        line=[dict["variant"][gene]["chr"],dict["variant"][gene]["pos"],dict["variant"][gene]["ref"],dict["variant"][gene]["alt"],gene,dict["variant"][gene]["RS"]]
+        line=[dict["variant"][gene]["chr"],dict["variant"][gene]["pos"],dict["variant"][gene]["ref"],gene,dict["variant"][gene]["RS"]]
         for sample in samples:
             line.append(dict["variant"][gene]["samples"][sample]["obs_var"]["DP"])
         non_giab_coverage.write("\t".join(line)+"\n")
 
 # create genotype results for GIAB samples -one row per SNP, 3 cols per sample, expected ALT+GT, observed ALT+GT and if these match
-header=["chr","pos","ref","alt","gene","RS"]
+header=["chr","pos","ref","gene","RS"]
 for sample in samples2:
-    header.append(sample+"_expected_ALT,"+sample+"_expected_GT")
-    header.append(sample+"_observed_ALT,"+sample+"_observed_GT")
+    header.append(sample+"_expected_GT")
+    header.append(sample+"_observed_GT")
     header.append(sample+"_match")
 
 with open(output_file2,'w') as giab_results:
@@ -263,11 +276,11 @@ with open(output_file2,'w') as giab_results:
         # the PDP1 gene isn't ijn the truth set VCF so skip
         if gene != "PDP1":
             # create list for this line
-            line=[dict2["variant"][gene]["chr"],dict2["variant"][gene]["pos"],dict2["variant"][gene]["ref"],dict2["variant"][gene]["alt"],gene,dict["variant"][gene]["RS"]]
+            line=[dict2["variant"][gene]["chr"],dict2["variant"][gene]["pos"],dict2["variant"][gene]["ref"],gene,dict["variant"][gene]["RS"]]
             for sample in samples2:
                 # add 3 cols for each sample ( expected, observed genotype and if these match)
-                line.append(dict2["variant"][gene]["samples"][sample]["exp_var"]["ALT"]+","+dict2["variant"][gene]["samples"][sample]["exp_var"]["GT"])
-                line.append(dict2["variant"][gene]["samples"][sample]["obs_var"]["ALT"]+","+dict2["variant"][gene]["samples"][sample]["obs_var"]["GT"])
+                line.append(dict2["variant"][gene]["samples"][sample]["exp_var"]["REF"]+","+dict2["variant"][gene]["samples"][sample]["exp_var"]["ALT"]+","+dict2["variant"][gene]["samples"][sample]["exp_var"]["GT"])
+                line.append(dict2["variant"][gene]["samples"][sample]["obs_var"]["REF"]+","+dict2["variant"][gene]["samples"][sample]["obs_var"]["ALT"]+","+dict2["variant"][gene]["samples"][sample]["obs_var"]["GT"])
                 if dict2["variant"][gene]["samples"][sample]["obs_var"]["ALT"].startswith(dict2["variant"][gene]["samples"][sample]["exp_var"]["ALT"][0]):
                     if dict2["variant"][gene]["samples"][sample]["exp_var"]["GT"] == dict2["variant"][gene]["samples"][sample]["obs_var"]["GT"]:
                         line.append("match")
@@ -287,7 +300,7 @@ with open(output_file4,'w') as giab_coverage:
     # for each SNP
     for gene in dict2["variant"]:
         # create a list of DP for each sample
-        line=[dict2["variant"][gene]["chr"],dict2["variant"][gene]["pos"],dict2["variant"][gene]["ref"],dict2["variant"][gene]["alt"],gene,dict["variant"][gene]["RS"]]
+        line=[dict2["variant"][gene]["chr"],dict2["variant"][gene]["pos"],dict2["variant"][gene]["ref"],gene,dict["variant"][gene]["RS"]]
         for sample in samples2:
             line.append(dict2["variant"][gene]["samples"][sample]["obs_var"]["DP"])
         giab_coverage.write("\t".join(line)+"\n")
